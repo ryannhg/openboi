@@ -117,13 +117,25 @@ viewWrapper : Context.Model -> Document Msg -> Document Msg
 viewWrapper context { title, body } =
     { title = title
     , body =
-        [ div [ class "h-100" ]
+        [ div
+            [ class "h-100 transition"
+            , classList
+                [ ( "transition--notready", context.transition == Application.NotReady )
+                ]
+            ]
             [ div [] [ Elements.Navbar.view context ]
             , div [ class "container h-100" ]
                 [ div [ class "row h-100" ]
                     [ Elements.Navigation.view context
                     , main_ [ class "col h-100 pad-lg pad-l-xl" ]
-                        [ div [ class "" ] body
+                        [ div
+                            [ class "transition"
+                            , classList
+                                [ ( "transition--leaving", context.transition == Application.Leaving )
+                                , ( "transition--entering", context.transition == Application.Entering )
+                                ]
+                            ]
+                            body
                         ]
                     ]
                 ]

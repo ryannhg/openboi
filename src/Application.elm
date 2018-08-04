@@ -7,8 +7,10 @@ module Application
         , updatePage
         , initPage
         , Document
+        , Transition(..)
         )
 
+import Utilities exposing (delayedCommand)
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav exposing (Key)
 import Html exposing (Html, text)
@@ -16,11 +18,24 @@ import Url exposing (Url)
 import Url.Parser as Url
 
 
+transitionDelay : Float
+transitionDelay =
+    400
+
+
+type Transition
+    = NotReady
+    | Entering
+    | Ready
+    | Leaving
+
+
+
 -- Pages
 
 
-type alias HasUrl a =
-    { a | url : Url }
+type alias Contextual a =
+    { a | url : Url, transition : Transition }
 
 
 type alias Document msg =
@@ -59,7 +74,8 @@ type alias Model contextModel model =
 
 
 type Msg contextMsg msg
-    = Navigation UrlMsg
+    = SetTransition Transition
+    | Navigation UrlMsg
     | ContextMsg contextMsg
     | PageMsg msg
 
@@ -67,6 +83,7 @@ type Msg contextMsg msg
 type UrlMsg
     = OnUrlRequest UrlRequest
     | OnUrlChange Url
+    | PushUrl Url Key
 
 
 
@@ -74,11 +91,11 @@ type UrlMsg
 
 
 type alias Config flags contextModel contextMsg model msg route =
-    { context : ContextConfig flags (HasUrl contextModel) contextMsg
-    , init : route -> HasUrl contextModel -> ( model, Cmd msg, Cmd contextMsg )
-    , update : msg -> model -> HasUrl contextModel -> ( model, Cmd msg, Cmd contextMsg )
-    , view : model -> HasUrl contextModel -> Document msg
-    , subscriptions : HasUrl contextModel -> model -> Sub msg
+    { context : ContextConfig flags (Contextual contextModel) contextMsg
+    , init : route -> Contextual contextModel -> ( model, Cmd msg, Cmd contextMsg )
+    , update : msg -> model -> Contextual contextModel -> ( model, Cmd msg, Cmd contextMsg )
+    , view : model -> Contextual contextModel -> Document msg
+    , subscriptions : Contextual contextModel -> model -> Sub msg
     , notFoundPage : Page route
     , pages : List (Page route)
     }
@@ -92,7 +109,7 @@ type alias ContextConfig flags model msg =
 
 program :
     Config flags contextModel contextMsg model msg route
-    -> Program flags (Model (HasUrl contextModel) model) (Msg contextMsg msg)
+    -> Program flags (Model (Contextual contextModel) model) (Msg contextMsg msg)
 program config =
     Browser.application
         { init = init config
@@ -113,7 +130,7 @@ init :
     -> flags
     -> Url
     -> Key
-    -> ( Model (HasUrl contextModel) model, Cmd (Msg contextMsg msg) )
+    -> ( Model (Contextual contextModel) model, Cmd (Msg contextMsg msg) )
 init config flags url key =
     let
         ( contextModel, contextCmd ) =
@@ -127,7 +144,8 @@ init config flags url key =
             contextModel
             pageModel
         , Cmd.batch
-            [ Cmd.map ContextMsg contextCmd
+            [ delayedCommand transitionDelay (SetTransition Ready)
+            , Cmd.map ContextMsg contextCmd
             , Cmd.map ContextMsg pageContextCmd
             , Cmd.map PageMsg pageCmd
             ]
@@ -137,8 +155,8 @@ init config flags url key =
 initPage :
     (pageModel -> model)
     -> (pageMsg -> msg)
-    -> (HasUrl contextModel -> ( pageModel, Cmd pageMsg, Cmd contextMsg ))
-    -> HasUrl contextModel
+    -> (Contextual contextModel -> ( pageModel, Cmd pageMsg, Cmd contextMsg ))
+    -> Contextual contextModel
     -> ( model, Cmd msg, Cmd contextMsg )
 initPage toModel toMsg init_ contextModel =
     let
@@ -183,7 +201,7 @@ docMap toMsg doc =
 
 view :
     Config flags contextModel contextMsg model msg route
-    -> Model (HasUrl contextModel) model
+    -> Model (Contextual contextModel) model
     -> Document (Msg contextMsg msg)
 view config model =
     docMap PageMsg (config.view model.page model.context)
@@ -192,8 +210,8 @@ view config model =
 viewPage :
     pageModel
     -> (pageMsg -> msg)
-    -> (HasUrl contextModel -> pageModel -> Document pageMsg)
-    -> HasUrl contextModel
+    -> (Contextual contextModel -> pageModel -> Document pageMsg)
+    -> Contextual contextModel
     -> Document msg
 viewPage model toMsg view_ contextModel =
     docMap toMsg (view_ contextModel model)
@@ -208,8 +226,8 @@ updatePage :
     -> pageModel
     -> (pageModel -> model)
     -> (pageMsg -> msg)
-    -> (HasUrl contextModel -> pageMsg -> pageModel -> ( pageModel, Cmd pageMsg, Cmd contextMsg ))
-    -> HasUrl contextModel
+    -> (Contextual contextModel -> pageMsg -> pageModel -> ( pageModel, Cmd pageMsg, Cmd contextMsg ))
+    -> Contextual contextModel
     -> ( model, Cmd msg, Cmd contextMsg )
 updatePage msg model toModel toMsg update_ contextModel =
     let
@@ -225,10 +243,19 @@ updatePage msg model toModel toMsg update_ contextModel =
 update :
     Config flags contextModel contextMsg model msg route
     -> Msg contextMsg msg
-    -> Model (HasUrl contextModel) model
-    -> ( Model (HasUrl contextModel) model, Cmd (Msg contextMsg msg) )
+    -> Model (Contextual contextModel) model
+    -> ( Model (Contextual contextModel) model, Cmd (Msg contextMsg msg) )
 update config msg model =
     case msg of
+        SetTransition transition ->
+            let
+                context =
+                    model.context
+            in
+                ( { model | context = { context | transition = transition } }
+                , Cmd.none
+                )
+
         Navigation navMsg ->
             case navMsg of
                 OnUrlChange url ->
@@ -241,20 +268,33 @@ update config msg model =
                     in
                         ( { model
                             | page = pageModel
-                            , context = { context | url = url }
+                            , context = { context | url = url, transition = Entering }
                           }
                         , Cmd.batch
                             [ Cmd.map ContextMsg contextCmd
                             , Cmd.map PageMsg pageCmd
+                            , delayedCommand transitionDelay (SetTransition Ready)
                             ]
                         )
+
+                PushUrl url key ->
+                    ( model
+                    , Nav.pushUrl key (Url.toString url)
+                    )
 
                 OnUrlRequest urlRequest ->
                     case urlRequest of
                         Internal url ->
-                            ( model
-                            , Nav.pushUrl model.key (Url.toString url)
-                            )
+                            if url == model.context.url || model.context.transition /= Ready then
+                                ( model, Cmd.none )
+                            else
+                                let
+                                    context =
+                                        model.context
+                                in
+                                    ( { model | context = { context | transition = Leaving } }
+                                    , delayedCommand transitionDelay (Navigation <| PushUrl url model.key)
+                                    )
 
                         External url ->
                             ( model
@@ -290,7 +330,7 @@ update config msg model =
 
 subscriptions :
     Config flags contextModel contextMsg model msg route
-    -> Model (HasUrl contextModel) model
+    -> Model (Contextual contextModel) model
     -> Sub (Msg contextMsg msg)
 subscriptions config =
     always Sub.none

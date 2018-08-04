@@ -7,6 +7,7 @@ module Context
         , init
         )
 
+import Application exposing (Transition(..))
 import Url exposing (Url)
 
 
@@ -22,6 +23,7 @@ type alias Flags =
 
 type alias Model =
     { url : Url
+    , transition : Application.Transition
     , user : Maybe User
     }
 
@@ -35,6 +37,7 @@ init : Flags -> Url -> ( Model, Cmd Msg )
 init flags url =
     ( Model
         url
+        NotReady
         (Just <| User "Ryan" "ryan.nhg@gmail.com")
     , Cmd.none
     )
