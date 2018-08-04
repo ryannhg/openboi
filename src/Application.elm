@@ -2,8 +2,10 @@ module Application
     exposing
         ( page
         , notFoundPage
-        , basicProgram
-        , docMap
+        , program
+        , viewPage
+        , updatePage
+        , initPage
         , Document
         )
 
@@ -21,35 +23,29 @@ type alias Document msg =
     Browser.Document msg
 
 
-type alias Page model route =
+type alias Page route =
     { parser : Url.Parser route route
     , route : route
-    , init : model
     }
 
 
+page : Url.Parser route route -> route -> Page route
 page =
     Page
 
 
+notFoundPage : route -> Page route
 notFoundPage =
     Page Url.top
-
-
-
--- Flags
-
-
-type alias Flags =
-    ()
 
 
 
 -- Model
 
 
-type alias Model model =
+type alias Model contextModel model =
     { key : Key
+    , context : contextModel
     , page : model
     }
 
@@ -58,8 +54,9 @@ type alias Model model =
 -- Msg
 
 
-type Msg msg
+type Msg contextMsg msg
     = Navigation UrlMsg
+    | ContextMsg contextMsg
     | PageMsg msg
 
 
@@ -72,45 +69,89 @@ type UrlMsg
 -- Program
 
 
-type alias Config model msg route =
-    { update : msg -> model -> model
-    , view : model -> Document msg
-    , notFoundPage : Page model route
-    , pages : List (Page model route)
+type alias Config flags contextModel contextMsg model msg route =
+    { context : ContextConfig flags contextModel contextMsg
+    , init : route -> contextModel -> ( model, Cmd msg, Cmd contextMsg )
+    , update : msg -> model -> contextModel -> ( model, Cmd msg, Cmd contextMsg )
+    , view : model -> contextModel -> Document msg
+    , subscriptions : contextModel -> model -> Sub msg
+    , notFoundPage : Page route
+    , pages : List (Page route)
     }
 
 
-basicProgram :
-    Config model msg route
-    -> Program Flags (Model model) (Msg msg)
-basicProgram config =
+type alias ContextConfig flags model msg =
+    { init : flags -> ( model, Cmd msg )
+    , update : msg -> model -> ( model, Cmd msg )
+    }
+
+
+program :
+    Config flags contextModel contextMsg model msg route
+    -> Program flags (Model contextModel model) (Msg contextMsg msg)
+program config =
     Browser.application
         { init = init config
         , view = view config
         , update = update config
-        , subscriptions = subscriptions
+        , subscriptions = subscriptions config
         , onUrlRequest = Navigation << OnUrlRequest
         , onUrlChange = Navigation << OnUrlChange
         }
 
 
+
+-- Init
+
+
 init :
-    Config model msg route
-    -> Flags
+    Config flags contextModel contextMsg model msg route
+    -> flags
     -> Url
     -> Key
-    -> ( Model model, Cmd (Msg msg) )
+    -> ( Model contextModel model, Cmd (Msg contextMsg msg) )
 init config flags url key =
-    ( Model key (getPage config url)
-    , Cmd.none
-    )
+    let
+        ( contextModel, contextCmd ) =
+            config.context.init flags
+
+        ( pageModel, pageCmd, pageContextCmd ) =
+            config.init (getRoute config url) contextModel
+    in
+        ( Model
+            key
+            contextModel
+            pageModel
+        , Cmd.batch
+            [ Cmd.map ContextMsg contextCmd
+            , Cmd.map ContextMsg pageContextCmd
+            , Cmd.map PageMsg pageCmd
+            ]
+        )
 
 
-getPage :
-    Config model msg route
+initPage :
+    (pageModel -> model)
+    -> (pageMsg -> msg)
+    -> (contextModel -> ( pageModel, Cmd pageMsg, Cmd contextMsg ))
+    -> contextModel
+    -> ( model, Cmd msg, Cmd contextMsg )
+initPage toModel toMsg init_ contextModel =
+    let
+        ( updatedPageModel, updatedPageCmd, updatedContextCmd ) =
+            (init_ contextModel)
+    in
+        ( toModel updatedPageModel
+        , Cmd.map toMsg updatedPageCmd
+        , updatedContextCmd
+        )
+
+
+getRoute :
+    Config flags contextModel contextMsg model msg route
     -> Url
-    -> model
-getPage config url =
+    -> route
+getRoute config url =
     config.pages
         |> List.map (\page_ -> Url.map page_.route page_.parser)
         |> Url.oneOf
@@ -122,38 +163,81 @@ getPage config url =
                     |> List.head
             )
         |> Maybe.withDefault config.notFoundPage
-        |> .init
+        |> .route
 
 
-view :
-    Config model msg route
-    -> Model model
-    -> Document (Msg msg)
-view config model =
-    config.view model.page
-        |> docMap PageMsg
+
+-- View
 
 
 docMap : (a -> b) -> Document a -> Document b
-docMap fn doc =
+docMap toMsg doc =
     { title = doc.title
-    , body = List.map (Html.map fn) doc.body
+    , body = List.map (Html.map toMsg) doc.body
     }
 
 
+view :
+    Config flags contextModel contextMsg model msg route
+    -> Model contextModel model
+    -> Document (Msg contextMsg msg)
+view config model =
+    docMap PageMsg (config.view model.page model.context)
+
+
+viewPage :
+    pageModel
+    -> (pageMsg -> msg)
+    -> (contextModel -> pageModel -> Document pageMsg)
+    -> contextModel
+    -> Document msg
+viewPage model toMsg view_ contextModel =
+    docMap toMsg (view_ contextModel model)
+
+
+
+-- Update
+
+
+updatePage :
+    pageMsg
+    -> pageModel
+    -> (pageModel -> model)
+    -> (pageMsg -> msg)
+    -> (contextModel -> pageMsg -> pageModel -> ( pageModel, Cmd pageMsg, Cmd contextMsg ))
+    -> contextModel
+    -> ( model, Cmd msg, Cmd contextMsg )
+updatePage msg model toModel toMsg update_ contextModel =
+    let
+        ( updatedPageModel, updatedPageCmd, updatedContextCmd ) =
+            (update_ contextModel msg model)
+    in
+        ( toModel updatedPageModel
+        , Cmd.map toMsg updatedPageCmd
+        , updatedContextCmd
+        )
+
+
 update :
-    Config model msg route
-    -> Msg msg
-    -> Model model
-    -> ( Model model, Cmd (Msg msg) )
+    Config flags contextModel contextMsg model msg route
+    -> Msg contextMsg msg
+    -> Model contextModel model
+    -> ( Model contextModel model, Cmd (Msg contextMsg msg) )
 update config msg model =
     case msg of
         Navigation navMsg ->
             case navMsg of
                 OnUrlChange url ->
-                    ( { model | page = getPage config url }
-                    , Cmd.none
-                    )
+                    let
+                        ( pageModel, pageCmd, contextCmd ) =
+                            config.init (getRoute config url) model.context
+                    in
+                        ( { model | page = pageModel }
+                        , Cmd.batch
+                            [ Cmd.map ContextMsg contextCmd
+                            , Cmd.map PageMsg pageCmd
+                            ]
+                        )
 
                 OnUrlRequest urlRequest ->
                     case urlRequest of
@@ -167,11 +251,36 @@ update config msg model =
                             , Nav.load url
                             )
 
+        ContextMsg contextMsg ->
+            let
+                ( updatedContext, updatedContextCmd ) =
+                    config.context.update contextMsg model.context
+            in
+                ( { model | context = updatedContext }
+                , Cmd.map ContextMsg updatedContextCmd
+                )
+
         PageMsg pageMsg ->
-            ( { model | page = config.update pageMsg model.page }
-            , Cmd.none
-            )
+            let
+                ( updatedPageModel, updatedPageCmd, updatedContextCmd ) =
+                    config.update pageMsg model.page model.context
+            in
+                ( { model | page = updatedPageModel }
+                , Cmd.batch
+                    [ Cmd.map PageMsg updatedPageCmd
+                    , Cmd.map ContextMsg updatedContextCmd
+                    ]
+                )
 
 
-subscriptions =
+
+-- Subscriptions
+-- TODO: Make these do something.
+
+
+subscriptions :
+    Config flags contextModel contextMsg model msg route
+    -> Model contextModel model
+    -> Sub (Msg contextMsg msg)
+subscriptions config =
     always Sub.none

@@ -1,6 +1,6 @@
 module Main exposing (main)
 
-import Application exposing (Document, docMap)
+import Application exposing (Document)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Pages.Home as Home
@@ -9,9 +9,10 @@ import Pages.Timesheets as Timesheets
 import Pages.Expenses as Expenses
 import Pages.NotFound as NotFound
 import Url.Parser as Url
+import Context
 
 
--- Routes
+-- Routes, Models, Msgs
 
 
 type Route
@@ -39,49 +40,75 @@ type Msg
 
 
 
+-- Init
+
+
+init : Route -> Context.Model -> ( Model, Cmd Msg, Cmd Context.Msg )
+init route =
+    case route of
+        Home ->
+            Application.initPage HomeModel HomeMsg Home.init
+
+        Schedule ->
+            Application.initPage ScheduleModel ScheduleMsg Schedule.init
+
+        Timesheets ->
+            Application.initPage TimesheetsModel TimesheetsMsg Timesheets.init
+
+        Expenses ->
+            Application.initPage ExpensesModel ExpensesMsg Expenses.init
+
+        NotFound ->
+            Application.initPage NotFoundModel NotFoundMsg NotFound.init
+
+
+
 -- Update
 
 
-update : Msg -> Model -> Model
-update msg model =
-    case ( msg, model ) of
-        ( HomeMsg msg_, HomeModel model_ ) ->
-            HomeModel <| Home.update msg_ model_
+update : Msg -> Model -> Context.Model -> ( Model, Cmd Msg, Cmd Context.Msg )
+update msg_ model_ =
+    case ( msg_, model_ ) of
+        ( HomeMsg msg, HomeModel model ) ->
+            Application.updatePage msg model HomeModel HomeMsg Home.update
 
-        ( ScheduleMsg msg_, ScheduleModel model_ ) ->
-            ScheduleModel <| Schedule.update msg_ model_
+        ( ScheduleMsg msg, ScheduleModel model ) ->
+            Application.updatePage msg model ScheduleModel ScheduleMsg Schedule.update
 
-        ( TimesheetsMsg msg_, TimesheetsModel model_ ) ->
-            TimesheetsModel <| Timesheets.update msg_ model_
+        ( TimesheetsMsg msg, TimesheetsModel model ) ->
+            Application.updatePage msg model TimesheetsModel TimesheetsMsg Timesheets.update
 
-        ( ExpensesMsg msg_, ExpensesModel model_ ) ->
-            ExpensesModel <| Expenses.update msg_ model_
+        ( ExpensesMsg msg, ExpensesModel model ) ->
+            Application.updatePage msg model ExpensesModel ExpensesMsg Expenses.update
 
-        ( NotFoundMsg msg_, NotFoundModel model_ ) ->
-            NotFoundModel <| NotFound.update msg_ model_
+        ( NotFoundMsg msg, NotFoundModel model ) ->
+            Application.updatePage msg model NotFoundModel NotFoundMsg NotFound.update
 
         ( _, _ ) ->
-            model
+            (\_ -> ( model_, Cmd.none, Cmd.none ))
 
 
-view : Model -> Document Msg
-view model =
-    viewWrapper <|
-        case model of
-            HomeModel model_ ->
-                Home.view model_ |> docMap HomeMsg
 
-            ScheduleModel model_ ->
-                Schedule.view model_ |> docMap ScheduleMsg
+-- View
 
-            TimesheetsModel model_ ->
-                Timesheets.view model_ |> docMap TimesheetsMsg
 
-            ExpensesModel model_ ->
-                Expenses.view model_ |> docMap ExpensesMsg
+view : Model -> Context.Model -> Document Msg
+view model_ =
+    case model_ of
+        HomeModel model ->
+            Application.viewPage model HomeMsg Home.view
 
-            NotFoundModel model_ ->
-                NotFound.view model_ |> docMap NotFoundMsg
+        ScheduleModel model ->
+            Application.viewPage model ScheduleMsg Schedule.view
+
+        TimesheetsModel model ->
+            Application.viewPage model TimesheetsMsg Timesheets.view
+
+        ExpensesModel model ->
+            Application.viewPage model ExpensesMsg Expenses.view
+
+        NotFoundModel model ->
+            Application.viewPage model NotFoundMsg NotFound.view
 
 
 viewWrapper : Document Msg -> Document Msg
@@ -101,33 +128,35 @@ viewWrapper { title, body } =
 
 
 
+-- Subscriptions
 -- Main
 
 
 main =
-    Application.basicProgram
-        { update = update
-        , view = view
+    Application.program
+        { context =
+            { init = Context.init
+            , update = Context.update
+            }
+        , init = init
+        , update = update
+        , view = (\context model -> view context model |> viewWrapper)
+        , subscriptions = (\context -> always Sub.none)
         , notFoundPage =
             Application.notFoundPage
                 NotFound
-                (NotFoundModel NotFound.init)
         , pages =
             [ Application.page
                 Url.top
                 Home
-                (HomeModel Home.init)
             , Application.page
                 (Url.s "schedule")
                 Schedule
-                (ScheduleModel Schedule.init)
             , Application.page
                 (Url.s "timesheets")
                 Timesheets
-                (TimesheetsModel Timesheets.init)
             , Application.page
                 (Url.s "expenses")
                 Expenses
-                (ExpensesModel Expenses.init)
             ]
         }
