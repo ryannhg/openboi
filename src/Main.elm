@@ -1,6 +1,8 @@
 module Main exposing (main)
 
-import Application
+import Application exposing (Document, docMap)
+import Html exposing (..)
+import Html.Attributes exposing (..)
 import Pages.Home as Home
 import Pages.Schedule as Schedule
 import Pages.Timesheets as Timesheets
@@ -20,7 +22,7 @@ type Route
     | NotFound
 
 
-type PageModel
+type Model
     = HomeModel Home.Model
     | ScheduleModel Schedule.Model
     | TimesheetsModel Timesheets.Model
@@ -28,7 +30,7 @@ type PageModel
     | NotFoundModel NotFound.Model
 
 
-type PageMsg
+type Msg
     = HomeMsg Home.Msg
     | ScheduleMsg Schedule.Msg
     | TimesheetsMsg Timesheets.Msg
@@ -40,7 +42,7 @@ type PageMsg
 -- Update
 
 
-update : PageMsg -> PageModel -> PageModel
+update : Msg -> Model -> Model
 update msg model =
     case ( msg, model ) of
         ( HomeMsg msg_, HomeModel model_ ) ->
@@ -62,6 +64,42 @@ update msg model =
             model
 
 
+view : Model -> Document Msg
+view model =
+    viewWrapper <|
+        case model of
+            HomeModel model_ ->
+                Home.view model_ |> docMap HomeMsg
+
+            ScheduleModel model_ ->
+                Schedule.view model_ |> docMap ScheduleMsg
+
+            TimesheetsModel model_ ->
+                Timesheets.view model_ |> docMap TimesheetsMsg
+
+            ExpensesModel model_ ->
+                Expenses.view model_ |> docMap ExpensesMsg
+
+            NotFoundModel model_ ->
+                NotFound.view model_ |> docMap NotFoundMsg
+
+
+viewWrapper : Document Msg -> Document Msg
+viewWrapper { title, body } =
+    { title = title
+    , body =
+        [ div []
+            [ a [ href "/" ] [ text "Home" ]
+            , a [ style "margin-left" ".5rem", href "/schedule" ] [ text "Schedule" ]
+            , a [ style "margin-left" ".5rem", href "/timesheets" ] [ text "Timesheets" ]
+            , a [ style "margin-left" ".5rem", href "/expenses" ] [ text "Expenses" ]
+            , a [ style "margin-left" ".5rem", href "/garbage-town" ] [ text "Bad link" ]
+            ]
+        , div [] body
+        ]
+    }
+
+
 
 -- Main
 
@@ -69,51 +107,27 @@ update msg model =
 main =
     Application.basicProgram
         { update = update
+        , view = view
         , notFoundPage =
             Application.notFoundPage
                 NotFound
-                NotFoundModel
-                NotFoundMsg
-                "Not Found"
-                NotFound.init
-                NotFound.update
-                NotFound.view
+                (NotFoundModel NotFound.init)
         , pages =
             [ Application.page
                 Url.top
                 Home
-                HomeModel
-                HomeMsg
-                "Home"
-                Home.init
-                Home.update
-                Home.view
+                (HomeModel Home.init)
             , Application.page
                 (Url.s "schedule")
                 Schedule
-                ScheduleModel
-                ScheduleMsg
-                "Schedule"
-                Schedule.init
-                Schedule.update
-                Schedule.view
+                (ScheduleModel Schedule.init)
             , Application.page
                 (Url.s "timesheets")
                 Timesheets
-                TimesheetsModel
-                TimesheetsMsg
-                "Timesheets"
-                Timesheets.init
-                Timesheets.update
-                Timesheets.view
+                (TimesheetsModel Timesheets.init)
             , Application.page
                 (Url.s "expenses")
                 Expenses
-                ExpensesModel
-                ExpensesMsg
-                "Expenses"
-                Expenses.init
-                Expenses.update
-                Expenses.view
+                (ExpensesModel Expenses.init)
             ]
         }

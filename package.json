@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "build": "../elm make --output=public/app.js ./src/Main.elm",
-    "build:watch": "chokidar './src' -c 'npm run build'"
+    "build:watch": "chokidar './src' -c 'npm run build'",
+    "server": "node index.js",
+    "start": "npm run build && npm run server",
+    "dev": "npm run build:watch & npm run server"
   },
   "repository": {
     "type": "git",
@@ -20,5 +23,8 @@
   "homepage": "https://github.com/ryannhg/openboi#readme",
   "devDependencies": {
     "chokidar-cli": "^1.2.0"
+  },
+  "dependencies": {
+    "express": "^4.16.3"
   }
 }

@@ -1,5 +1,6 @@
 module Pages.Home exposing (Model, Msg(..), init, update, view)
 
+import Browser exposing (Document)
 import Html exposing (..)
 
 
@@ -24,6 +25,10 @@ update msg model =
             model
 
 
-view : Model -> Html Msg
+view : Model -> Document Msg
 view model =
-    text "Home"
+    { title = "Home"
+    , body =
+        [ text "Home"
+        ]
+    }

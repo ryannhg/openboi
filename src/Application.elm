@@ -3,9 +3,11 @@ module Application
         ( page
         , notFoundPage
         , basicProgram
+        , docMap
+        , Document
         )
 
-import Browser exposing (Document, UrlRequest(..))
+import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav exposing (Key)
 import Html exposing (Html, text)
 import Url exposing (Url)
@@ -15,37 +17,23 @@ import Url.Parser as Url
 -- Pages
 
 
-type State model
-    = Inactive
-    | Active model
+type alias Document msg =
+    Browser.Document msg
 
 
-type alias Page bigModel bigMsg smallModel smallMsg route =
-    { -- Internals
-      state : State bigModel
-
-    -- Routing
-    , parser : Url.Parser route route
+type alias Page model route =
+    { parser : Url.Parser route route
     , route : route
-
-    -- Type Normalization
-    , toModel : smallModel -> bigModel
-    , toMsg : smallMsg -> bigMsg
-
-    -- Page Functions
-    , title : String
-    , init : smallModel
-    , update : smallMsg -> smallModel -> smallModel
-    , view : smallModel -> Html smallMsg
+    , init : model
     }
 
 
 page =
-    Page Inactive
+    Page
 
 
 notFoundPage =
-    Page Inactive Url.top
+    Page Url.top
 
 
 
@@ -60,9 +48,9 @@ type alias Flags =
 -- Model
 
 
-type alias Model bigModel bigMsg smallModel smallMsg route =
+type alias Model model =
     { key : Key
-    , page : Page bigModel bigMsg smallModel smallMsg route
+    , page : model
     }
 
 
@@ -70,9 +58,9 @@ type alias Model bigModel bigMsg smallModel smallMsg route =
 -- Msg
 
 
-type Msg bigMsg
+type Msg msg
     = Navigation UrlMsg
-    | PageMsg bigMsg
+    | PageMsg msg
 
 
 type UrlMsg
@@ -84,20 +72,21 @@ type UrlMsg
 -- Program
 
 
-type alias Config bigModel bigMsg smallModel smallMsg route =
-    { update : bigMsg -> bigModel -> bigModel
-    , notFoundPage : Page bigModel bigMsg smallModel smallMsg route
-    , pages : List (Page bigModel bigMsg smallModel smallMsg route)
+type alias Config model msg route =
+    { update : msg -> model -> model
+    , view : model -> Document msg
+    , notFoundPage : Page model route
+    , pages : List (Page model route)
     }
 
 
 basicProgram :
-    Config bigModel bigMsg smallModel smallMsg route
-    -> Program Flags (Model bigModel bigMsg smallModel smallMsg route) (Msg bigMsg)
+    Config model msg route
+    -> Program Flags (Model model) (Msg msg)
 basicProgram config =
     Browser.application
         { init = init config
-        , view = view
+        , view = view config
         , update = update config
         , subscriptions = subscriptions
         , onUrlRequest = Navigation << OnUrlRequest
@@ -106,11 +95,11 @@ basicProgram config =
 
 
 init :
-    Config bigModel bigMsg smallModel smallMsg route
+    Config model msg route
     -> Flags
     -> Url
     -> Key
-    -> ( Model bigModel bigMsg smallModel smallMsg route, Cmd (Msg bigMsg) )
+    -> ( Model model, Cmd (Msg msg) )
 init config flags url key =
     ( Model key (getPage config url)
     , Cmd.none
@@ -118,17 +107,14 @@ init config flags url key =
 
 
 getPage :
-    Config bigModel bigMsg smallModel smallMsg route
+    Config model msg route
     -> Url
-    -> Page bigModel bigMsg smallModel smallMsg route
+    -> model
 getPage config url =
-    (Url.parse
-        (config.pages
-            |> List.map (\page_ -> Url.map page_.route page_.parser)
-            |> Url.oneOf
-        )
-        url
-    )
+    config.pages
+        |> List.map (\page_ -> Url.map page_.route page_.parser)
+        |> Url.oneOf
+        |> (\routes -> Url.parse routes url)
         |> Maybe.andThen
             (\route ->
                 config.pages
@@ -136,29 +122,30 @@ getPage config url =
                     |> List.head
             )
         |> Maybe.withDefault config.notFoundPage
-        |> (\page_ -> { page_ | state = Active (page_.toModel page_.init) })
+        |> .init
 
 
 view :
-    Model bigModel bigMsg smallModel smallMsg route
-    -> Document (Msg bigMsg)
-view model =
-    Document
-        model.page.title
-        [ case model.page.state of
-            Active pageModel ->
-                Html.map (PageMsg << model.page.toMsg) (model.page.view pageModel)
+    Config model msg route
+    -> Model model
+    -> Document (Msg msg)
+view config model =
+    config.view model.page
+        |> docMap PageMsg
 
-            Inactive ->
-                text "Critical error (the page state is inactive)!"
-        ]
+
+docMap : (a -> b) -> Document a -> Document b
+docMap fn doc =
+    { title = doc.title
+    , body = List.map (Html.map fn) doc.body
+    }
 
 
 update :
-    Config bigModel bigMsg smallModel smallMsg route
-    -> Msg bigMsg
-    -> Model bigModel bigMsg smallModel smallMsg route
-    -> ( Model bigModel bigMsg smallModel smallMsg route, Cmd (Msg bigMsg) )
+    Config model msg route
+    -> Msg msg
+    -> Model model
+    -> ( Model model, Cmd (Msg msg) )
 update config msg model =
     case msg of
         Navigation navMsg ->
@@ -181,27 +168,9 @@ update config msg model =
                             )
 
         PageMsg pageMsg ->
-            ( { model | page = updatePageState config pageMsg model.page }
+            ( { model | page = config.update pageMsg model.page }
             , Cmd.none
             )
-
-
-updatePageState :
-    Config bigModel bigMsg smallModel smallMsg route
-    -> bigMsg
-    -> Page bigModel bigMsg smallModel smallMsg route
-    -> Page bigModel bigMsg smallModel smallMsg route
-updatePageState config pageMsg page_ =
-    case page_.state of
-        Active pageModel ->
-            { page_ | state = Active <| config.msgUnwrapper pageMsg pageModel }
-
-        Inactive ->
-            let
-                _ =
-                    Debug.log "Page bigModel bigMsg state is inactive!" page_
-            in
-                page_
 
 
 subscriptions =
