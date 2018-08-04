@@ -7,6 +7,8 @@ module Context
         , init
         )
 
+import Url exposing (Url)
+
 
 type alias User =
     { name : String
@@ -19,7 +21,8 @@ type alias Flags =
 
 
 type alias Model =
-    { user : Maybe User
+    { url : Url
+    , user : Maybe User
     }
 
 
@@ -28,9 +31,10 @@ type Msg
     | RemoveUser
 
 
-init : Flags -> ( Model, Cmd Msg )
-init flags =
+init : Flags -> Url -> ( Model, Cmd Msg )
+init flags url =
     ( Model
+        url
         (Just <| User "Ryan" "ryan.nhg@gmail.com")
     , Cmd.none
     )

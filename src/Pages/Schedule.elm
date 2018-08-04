@@ -44,7 +44,7 @@ view : Context.Model -> Model -> Document Msg
 view context model =
     { title = "Schedule"
     , body =
-        [ text "Schedule"
+        [ h1 [] [ text "Schedule" ]
         ]
     }
 

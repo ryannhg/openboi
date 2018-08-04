@@ -3,6 +3,8 @@ module Main exposing (main)
 import Application exposing (Document)
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Elements.Navbar
+import Elements.Navigation
 import Pages.Home as Home
 import Pages.Schedule as Schedule
 import Pages.Timesheets as Timesheets
@@ -111,18 +113,21 @@ view model_ =
             Application.viewPage model NotFoundMsg NotFound.view
 
 
-viewWrapper : Document Msg -> Document Msg
-viewWrapper { title, body } =
+viewWrapper : Context.Model -> Document Msg -> Document Msg
+viewWrapper context { title, body } =
     { title = title
     , body =
-        [ div []
-            [ a [ href "/" ] [ text "Home" ]
-            , a [ style "margin-left" ".5rem", href "/schedule" ] [ text "Schedule" ]
-            , a [ style "margin-left" ".5rem", href "/timesheets" ] [ text "Timesheets" ]
-            , a [ style "margin-left" ".5rem", href "/expenses" ] [ text "Expenses" ]
-            , a [ style "margin-left" ".5rem", href "/garbage-town" ] [ text "Bad link" ]
+        [ div [ class "h-100" ]
+            [ div [] [ Elements.Navbar.view context ]
+            , div [ class "container h-100" ]
+                [ div [ class "row h-100" ]
+                    [ Elements.Navigation.view context
+                    , main_ [ class "col h-100 pad-lg pad-l-xl" ]
+                        [ div [ class "" ] body
+                        ]
+                    ]
+                ]
             ]
-        , div [] body
         ]
     }
 
@@ -140,7 +145,7 @@ main =
             }
         , init = init
         , update = update
-        , view = (\context model -> view context model |> viewWrapper)
+        , view = (\model context -> view model context |> (viewWrapper context))
         , subscriptions = (\context -> always Sub.none)
         , notFoundPage =
             Application.notFoundPage

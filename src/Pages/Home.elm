@@ -11,6 +11,7 @@ module Pages.Home
 import Context
 import Browser exposing (Document)
 import Html exposing (..)
+import Html.Attributes exposing (..)
 
 
 type alias Model =
@@ -42,9 +43,14 @@ update context msg model =
 
 view : Context.Model -> Model -> Document Msg
 view context model =
-    { title = "Home"
+    { title = "OpenBoi"
     , body =
-        [ text "Home"
+        [ h1 [] [ text "Your Dashboard" ]
+        , div [ class "container" ]
+            [ div [ class "row" ] []
+            , div [ class "row" ] []
+            , div [ class "row" ] []
+            ]
         ]
     }
 
