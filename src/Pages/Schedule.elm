@@ -1,4 +1,4 @@
-module Schedule exposing (Model, Msg(..), init, update, view)
+module Pages.Schedule exposing (Model, Msg(..), init, update, view)
 
 import Html exposing (..)
 
@@ -8,18 +8,16 @@ type alias Model =
     }
 
 
-init : ( Model, Cmd Msg )
+init : Model
 init =
-    ( Model []
-    , Cmd.none
-    )
+    Model []
 
 
 type Msg
     = NoOp
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
+update : Msg -> Model -> Model
 update msg model =
     case msg of
         NoOp ->

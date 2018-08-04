@@ -1,0 +1,24 @@
+{
+  "name": "openboi",
+  "version": "1.0.0",
+  "description": "a time tracking app designed for people I love.",
+  "main": "index.js",
+  "scripts": {
+    "build": "../elm make --output=public/app.js ./src/Main.elm",
+    "build:watch": "chokidar './src' -c 'npm run build'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ryannhg/openboi.git"
+  },
+  "keywords": [],
+  "author": "Ryan Haskell-Glatz",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ryannhg/openboi/issues"
+  },
+  "homepage": "https://github.com/ryannhg/openboi#readme",
+  "devDependencies": {
+    "chokidar-cli": "^1.2.0"
+  }
+}

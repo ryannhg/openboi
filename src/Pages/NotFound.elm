@@ -1,4 +1,4 @@
-module Pages.Expenses exposing (Model, Msg(..), init, update, view)
+module Pages.NotFound exposing (Model, Msg(..), init, update, view)
 
 import Html exposing (..)
 
@@ -26,4 +26,4 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    text "Expenses"
+    text "NotFound"
