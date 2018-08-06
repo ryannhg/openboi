@@ -45,7 +45,7 @@ type Msg
 -- Init
 
 
-init : Route -> Context.Model -> ( Model, Cmd Msg, Cmd Context.Msg )
+init : Route -> Application.Session Context.Model -> ( Model, Cmd Msg, Cmd Context.Msg )
 init route =
     case route of
         Home ->
@@ -68,7 +68,7 @@ init route =
 -- Update
 
 
-update : Msg -> Model -> Context.Model -> ( Model, Cmd Msg, Cmd Context.Msg )
+update : Msg -> Model -> Application.Session Context.Model -> ( Model, Cmd Msg, Cmd Context.Msg )
 update msg_ model_ =
     case ( msg_, model_ ) of
         ( HomeMsg msg, HomeModel model ) ->
@@ -94,7 +94,7 @@ update msg_ model_ =
 -- View
 
 
-view : Model -> Context.Model -> Document Msg
+view : Model -> Application.Session Context.Model -> Document Msg
 view model_ =
     case model_ of
         HomeModel model ->
@@ -113,26 +113,26 @@ view model_ =
             Application.viewPage model NotFoundMsg NotFound.view
 
 
-viewWrapper : Context.Model -> Document Msg -> Document Msg
-viewWrapper context { title, body } =
+viewWrapper : Application.Session Context.Model -> Document Msg -> Document Msg
+viewWrapper session { title, body } =
     { title = title
     , body =
         [ div
             [ class "h-100 transition"
             , classList
-                [ ( "transition--notready", context.transition == Application.NotReady )
+                [ ( "transition--notready", session.transition == Application.NotReady )
                 ]
             ]
-            [ div [] [ Elements.Navbar.view context ]
+            [ div [] [ Elements.Navbar.view session ]
             , div [ class "container h-100" ]
                 [ div [ class "row h-100" ]
-                    [ Elements.Navigation.view context
+                    [ Elements.Navigation.view session
                     , main_ [ class "col h-100 pad-lg pad-l-xl" ]
                         [ div
                             [ class "transition"
                             , classList
-                                [ ( "transition--leaving", context.transition == Application.Leaving )
-                                , ( "transition--entering", context.transition == Application.Entering )
+                                [ ( "transition--leaving", session.transition == Application.Leaving )
+                                , ( "transition--entering", session.transition == Application.Entering )
                                 ]
                             ]
                             body
@@ -145,7 +145,6 @@ viewWrapper context { title, body } =
 
 
 
--- Subscriptions
 -- Main
 
 
@@ -157,8 +156,8 @@ main =
             }
         , init = init
         , update = update
-        , view = (\model context -> view model context |> (viewWrapper context))
-        , subscriptions = (\context -> always Sub.none)
+        , view = (\model session -> view model session |> (viewWrapper session))
+        , subscriptions = (\session -> always Sub.none)
         , notFoundPage =
             Application.notFoundPage
                 NotFound

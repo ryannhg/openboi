@@ -8,6 +8,7 @@ module Pages.Home
         , subscriptions
         )
 
+import Application exposing (Session)
 import Context
 import Browser exposing (Document)
 import Html exposing (..)
@@ -19,8 +20,8 @@ type alias Model =
     }
 
 
-init : Context.Model -> ( Model, Cmd Msg, Cmd Context.Msg )
-init context =
+init : Session Context.Model -> ( Model, Cmd Msg, Cmd Context.Msg )
+init session =
     ( Model []
     , Cmd.none
     , Cmd.none
@@ -31,8 +32,8 @@ type Msg
     = NoOp
 
 
-update : Context.Model -> Msg -> Model -> ( Model, Cmd Msg, Cmd Context.Msg )
-update context msg model =
+update : Application.Session Context.Model -> Msg -> Model -> ( Model, Cmd Msg, Cmd Context.Msg )
+update session msg model =
     case msg of
         NoOp ->
             ( model
@@ -41,20 +42,15 @@ update context msg model =
             )
 
 
-view : Context.Model -> Model -> Document Msg
-view context model =
+view : Application.Session Context.Model -> Model -> Document Msg
+view session model =
     { title = "OpenBoi"
     , body =
         [ h1 [] [ text "Your Dashboard" ]
-        , div [ class "container" ]
-            [ div [ class "row" ] []
-            , div [ class "row" ] []
-            , div [ class "row" ] []
-            ]
         ]
     }
 
 
-subscriptions : Context.Model -> Model -> Sub Msg
-subscriptions context model =
+subscriptions : Application.Session Context.Model -> Model -> Sub Msg
+subscriptions session model =
     Sub.none
