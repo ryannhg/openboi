@@ -5,9 +5,10 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Url exposing (Url)
 import Elements.Navigation exposing (Link, links)
+import Context
 
 
-view : Session context -> Html msg
+view : Session context -> Html Context.Msg
 view session =
     div
         [ class "pad-sm hide-md-up"
@@ -23,7 +24,7 @@ view session =
         ]
 
 
-viewLink : Url -> Link -> Html msg
+viewLink : Url -> Link -> Html Context.Msg
 viewLink url link =
     a
         [ href link.url

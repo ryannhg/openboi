@@ -9,6 +9,9 @@ module Application
         , Document
         , Transition(..)
         , Session
+        , Config
+        , Model
+        , Msg
         )
 
 import Utilities exposing (delayedCommand)
@@ -80,26 +83,38 @@ type alias Model contextModel model =
 -- Program
 
 
-type alias Config flags contextModel contextMsg model msg route =
-    { context : ContextConfig flags contextModel contextMsg
-    , init : route -> Session contextModel -> ( model, Cmd msg, Cmd contextMsg )
-    , update : msg -> model -> Session contextModel -> ( model, Cmd msg, Cmd contextMsg )
-    , view : model -> Session contextModel -> Document msg
-    , subscriptions : Session contextModel -> model -> Sub msg
+type alias Config flags contextModel contextMsg pageModel pageMsg route =
+    { context : ContextConfig flags contextModel contextMsg pageMsg
+    , init : route -> Session contextModel -> ( pageModel, Cmd pageMsg, Cmd contextMsg )
+    , update : pageMsg -> pageModel -> Session contextModel -> ( pageModel, Cmd pageMsg, Cmd contextMsg )
+    , view : pageModel -> Session contextModel -> Document pageMsg
+    , subscriptions : Session contextModel -> pageModel -> Sub pageMsg
     , notFoundPage : Page route
     , pages : List (Page route)
     }
 
 
-type alias ContextConfig flags model msg =
-    { init : flags -> Url -> ( model, Cmd msg )
-    , update : msg -> model -> ( model, Cmd msg )
+type alias ContextConfig flags contextModel contextMsg pageMsg =
+    { init :
+        flags
+        -> Url
+        -> ( contextModel, Cmd contextMsg )
+    , update :
+        contextMsg
+        -> contextModel
+        -> ( contextModel, Cmd contextMsg )
+    , view :
+        (contextMsg -> Msg contextMsg pageMsg)
+        -> (pageMsg -> Msg contextMsg pageMsg)
+        -> Session contextModel
+        -> Document pageMsg
+        -> Document (Msg contextMsg pageMsg)
     }
 
 
 program :
-    Config flags contextModel contextMsg model msg route
-    -> Program flags (Model contextModel model) (Msg contextMsg msg)
+    Config flags contextModel contextMsg pageModel pageMsg route
+    -> Program flags (Model contextModel pageModel) (Msg contextMsg pageMsg)
 program config =
     Browser.application
         { init = init config
@@ -116,11 +131,11 @@ program config =
 
 
 init :
-    Config flags contextModel contextMsg model msg route
+    Config flags contextModel contextMsg pageModel pageMsg route
     -> flags
     -> Url
     -> Key
-    -> ( Model contextModel model, Cmd (Msg contextMsg msg) )
+    -> ( Model contextModel pageModel, Cmd (Msg contextMsg pageMsg) )
 init config flags url key =
     let
         ( contextModel, contextCmd ) =
@@ -162,42 +177,21 @@ initPage toModel toMsg init_ session =
         )
 
 
-getRoute :
-    Config flags contextModel contextMsg model msg route
-    -> Url
-    -> route
-getRoute config url =
-    config.pages
-        |> List.map (\page_ -> Url.map page_.route page_.parser)
-        |> Url.oneOf
-        |> (\routes -> Url.parse routes url)
-        |> Maybe.andThen
-            (\route ->
-                config.pages
-                    |> List.filter (\page_ -> page_.route == route)
-                    |> List.head
-            )
-        |> Maybe.withDefault config.notFoundPage
-        |> .route
-
-
 
 -- View
 
 
-docMap : (a -> b) -> Document a -> Document b
-docMap toMsg doc =
-    { title = doc.title
-    , body = List.map (Html.map toMsg) doc.body
-    }
-
-
 view :
-    Config flags contextModel contextMsg model msg route
-    -> Model contextModel model
-    -> Document (Msg contextMsg msg)
+    Config flags contextModel contextMsg pageModel pageMsg route
+    -> Model contextModel pageModel
+    -> Document (Msg contextMsg pageMsg)
 view config model =
-    docMap PageMsg (config.view model.page model.session)
+    let
+        pageDocument : Document pageMsg
+        pageDocument =
+            config.view model.page model.session
+    in
+        config.context.view ContextMsg PageMsg model.session pageDocument
 
 
 viewPage :
@@ -214,11 +208,11 @@ viewPage model toMsg view_ contextModel =
 -- Update
 
 
-type Msg contextMsg msg
+type Msg contextMsg pageMsg
     = SetTransition Transition
     | Navigation UrlMsg
     | ContextMsg contextMsg
-    | PageMsg msg
+    | PageMsg pageMsg
 
 
 type UrlMsg
@@ -227,30 +221,11 @@ type UrlMsg
     | PushUrl Url Key
 
 
-updatePage :
-    pageMsg
-    -> pageModel
-    -> (pageModel -> model)
-    -> (pageMsg -> msg)
-    -> (Session contextModel -> pageMsg -> pageModel -> ( pageModel, Cmd pageMsg, Cmd contextMsg ))
-    -> Session contextModel
-    -> ( model, Cmd msg, Cmd contextMsg )
-updatePage msg model toModel toMsg update_ contextModel =
-    let
-        ( updatedPageModel, updatedPageCmd, updatedContextCmd ) =
-            (update_ contextModel msg model)
-    in
-        ( toModel updatedPageModel
-        , Cmd.map toMsg updatedPageCmd
-        , updatedContextCmd
-        )
-
-
 update :
-    Config flags contextModel contextMsg model msg route
-    -> Msg contextMsg msg
-    -> Model contextModel model
-    -> ( Model contextModel model, Cmd (Msg contextMsg msg) )
+    Config flags contextModel contextMsg pageModel pageMsg route
+    -> Msg contextMsg pageMsg
+    -> Model contextModel pageModel
+    -> ( Model contextModel pageModel, Cmd (Msg contextMsg pageMsg) )
 update config msg model =
     case msg of
         SetTransition transition ->
@@ -332,6 +307,25 @@ update config msg model =
                 )
 
 
+updatePage :
+    pageMsg
+    -> pageModel
+    -> (pageModel -> model)
+    -> (pageMsg -> msg)
+    -> (Session contextModel -> pageMsg -> pageModel -> ( pageModel, Cmd pageMsg, Cmd contextMsg ))
+    -> Session contextModel
+    -> ( model, Cmd msg, Cmd contextMsg )
+updatePage msg model toModel toMsg update_ contextModel =
+    let
+        ( updatedPageModel, updatedPageCmd, updatedContextCmd ) =
+            (update_ contextModel msg model)
+    in
+        ( toModel updatedPageModel
+        , Cmd.map toMsg updatedPageCmd
+        , updatedContextCmd
+        )
+
+
 
 -- Subscriptions
 -- TODO: Make these do something.
@@ -343,3 +337,33 @@ subscriptions :
     -> Sub (Msg contextMsg msg)
 subscriptions config =
     always Sub.none
+
+
+
+-- Helpers
+
+
+getRoute :
+    Config flags contextModel contextMsg model msg route
+    -> Url
+    -> route
+getRoute config url =
+    config.pages
+        |> List.map (\page_ -> Url.map page_.route page_.parser)
+        |> Url.oneOf
+        |> (\routes -> Url.parse routes url)
+        |> Maybe.andThen
+            (\route ->
+                config.pages
+                    |> List.filter (\page_ -> page_.route == route)
+                    |> List.head
+            )
+        |> Maybe.withDefault config.notFoundPage
+        |> .route
+
+
+docMap : (a -> b) -> Document a -> Document b
+docMap toMsg doc =
+    { title = doc.title
+    , body = List.map (Html.map toMsg) doc.body
+    }

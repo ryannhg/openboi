@@ -12,6 +12,7 @@ import Pages.Expenses as Expenses
 import Pages.NotFound as NotFound
 import Url.Parser as Url
 import Context
+import Context.Functions
 
 
 -- Routes, Models, Msgs
@@ -113,66 +114,49 @@ view model_ =
             Application.viewPage model NotFoundMsg NotFound.view
 
 
-viewWrapper : Application.Session Context.Model -> Document Msg -> Document Msg
-viewWrapper session { title, body } =
-    { title = title
-    , body =
-        [ div
-            [ class "h-100 transition"
-            , classList
-                [ ( "transition--notready", session.transition == Application.NotReady )
-                ]
-            ]
-            [ div [] [ Elements.Navbar.view session ]
-            , div [ class "container h-100" ]
-                [ div [ class "row h-100" ]
-                    [ Elements.Navigation.view session
-                    , main_ [ class "col h-100 pad-lg pad-l-xl" ]
-                        [ div
-                            [ class "transition"
-                            , classList
-                                [ ( "transition--leaving", session.transition == Application.Leaving )
-                                , ( "transition--entering", session.transition == Application.Entering )
-                                ]
-                            ]
-                            body
-                        ]
-                    ]
-                ]
-            ]
-        ]
-    }
+
+-- Subscriptions
+
+
+subscriptions session =
+    always Sub.none
 
 
 
 -- Main
 
 
+config : Application.Config Context.Flags Context.Model Context.Msg Model Msg Route
+config =
+    { context =
+        { init = Context.Functions.init
+        , update = Context.Functions.update
+        , view = Context.Functions.view
+        }
+    , init = init
+    , update = update
+    , view = view
+    , subscriptions = subscriptions
+    , notFoundPage =
+        Application.notFoundPage NotFound
+    , pages =
+        [ Application.page
+            Url.top
+            Home
+        , Application.page
+            (Url.s "schedule")
+            Schedule
+        , Application.page
+            (Url.s "timesheets")
+            Timesheets
+        , Application.page
+            (Url.s "expenses")
+            Expenses
+        ]
+    }
+
+
+main : Program Context.Flags (Application.Model Context.Model Model) (Application.Msg Context.Msg Msg)
 main =
     Application.program
-        { context =
-            { init = Context.init
-            , update = Context.update
-            }
-        , init = init
-        , update = update
-        , view = (\model session -> view model session |> (viewWrapper session))
-        , subscriptions = (\session -> always Sub.none)
-        , notFoundPage =
-            Application.notFoundPage
-                NotFound
-        , pages =
-            [ Application.page
-                Url.top
-                Home
-            , Application.page
-                (Url.s "schedule")
-                Schedule
-            , Application.page
-                (Url.s "timesheets")
-                Timesheets
-            , Application.page
-                (Url.s "expenses")
-                Expenses
-            ]
-        }
+        config

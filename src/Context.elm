@@ -1,13 +1,4 @@
-module Context
-    exposing
-        ( Flags
-        , Model
-        , Msg(..)
-        , update
-        , init
-        )
-
-import Url exposing (Url)
+module Context exposing (..)
 
 
 type alias User =
@@ -28,25 +19,3 @@ type alias Model =
 type Msg
     = SetUser User
     | RemoveUser
-
-
-init : Flags -> Url -> ( Model, Cmd Msg )
-init flags url =
-    ( Model
-        (Just <| User "Ryan" "ryan.nhg@gmail.com")
-    , Cmd.none
-    )
-
-
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
-    case msg of
-        SetUser user ->
-            ( { model | user = Just user }
-            , Cmd.none
-            )
-
-        RemoveUser ->
-            ( { model | user = Nothing }
-            , Cmd.none
-            )
