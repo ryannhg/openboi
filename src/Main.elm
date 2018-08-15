@@ -1,10 +1,6 @@
 module Main exposing (main)
 
 import Application exposing (Document)
-import Html exposing (..)
-import Html.Attributes exposing (..)
-import Elements.Navbar
-import Elements.Navigation
 import Pages.Home as Home
 import Pages.Schedule as Schedule
 import Pages.Timesheets as Timesheets
